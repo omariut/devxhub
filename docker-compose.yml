@@ -1,0 +1,60 @@
+version: '3'
+
+services:
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=devxhub
+    expose:
+      - 5432
+    restart: always
+    networks:
+      - my-network
+
+  redis:
+    image: redis:5-alpine
+    command: --port 6392
+    restart: always
+    networks:
+      - my-network
+
+  rabbitmq_uparts:
+    image: rabbitmq:3.9-alpine
+    restart: always
+    networks:
+      - my-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - redis
+      - rabbitmq_uparts
+    command: python manage.py runserver 0.0.0.0:5300
+    volumes:
+      - .:/app/backend
+    ports:
+      - "5300:5300"
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - my-network
+
+  celery_worker_uparts:
+    build: .
+    command: celery -A backend worker --loglevel=info
+    volumes:
+      - .:/app/celery
+    depends_on:
+      - rabbitmq_uparts
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge
